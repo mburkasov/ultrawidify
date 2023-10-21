@@ -732,8 +732,6 @@ class ArDetector {
     if (this.video.videoWidth !== this.canvas?.width || this.video.videoHeight !== this.canvas?.height) {
       if (!this.canvas) {
         console.error('canvas is not defined:', this.canvas)
-      } else {
-        console.log('canvas/video res mismatch:', this.video.videoWidth, this.canvas.width, 'h:', this.video.videoHeight, this.canvas.height);
       }
       this.logger.log('info', 'debug', `[ArDetect::animationFrameBootstrap] <@${this.arid}> Video dimensions have changed. Stopping autodetection loop; setup will be re-initialized.`);
       return this.setup();
