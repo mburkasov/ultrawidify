@@ -32,13 +32,15 @@ export interface AardPerformanceMeasurement {
 export interface AardPerformanceData {
   total: AardPerformanceMeasurement,
   theoretical: AardPerformanceMeasurement,
-  imageDraw: AardPerformanceMeasurement
+  imageDraw: AardPerformanceMeasurement,
+  imageRead: AardPerformanceMeasurement,
   blackFrameDraw: AardPerformanceMeasurement,
   blackFrame: AardPerformanceMeasurement,
   fastLetterbox: AardPerformanceMeasurement,
   edgeDetect: AardPerformanceMeasurement,
 
   imageDrawCount: number,
+  imageReadCount: number,
   blackFrameDrawCount: number,
   blackFrameCount: number,
   fastLetterboxCount: number,
@@ -244,11 +246,32 @@ class ArDetector {
         this.sampleLines.push(Math.round(rowSpacing * i) - 4);
       }
     }
+  }
+
+  setup(cwidth?: number, cheight?: number){
+    this.logger.log('info', 'init', `[ArDetect::setup] <@${this.arid}> Starting autodetection setup.`);
+    //
+    // [-1] check for zero-width and zero-height videos. If we detect this, we kick the proverbial
+    //      can some distance down the road. This problem will prolly fix itself soon. We'll also
+    //      not do any other setup until this issue is fixed
+    //
+    if (this.video.videoWidth === 0 || this.video.videoHeight === 0 ){
+      this.logger.log('warn', 'debug', `[ArDetect::setup] <@${this.arid}> This video has zero width or zero height. Dimensions: ${this.video.videoWidth} × ${this.video.videoHeight}`);
+
+      this.scheduleInitRestart();
+      return;
+    }
 
     //
-    // [3] do other things setup needs to do
+    // [0] initiate "dependencies" first
     //
 
+    this.guardLine = new GuardLine(this);
+    this.edgeDetector = new EdgeDetect(this);
+    // this.debugCanvas = new DebugCanvas(this);
+
+    this.setupCanvas();
+    this.setupSamplingPositions();
     this.resetBlackLevel();
 
     // if we're restarting ArDetect, we need to do this in order to force-recalculate aspect ratio
@@ -453,6 +476,7 @@ class ArDetector {
    */
   handlePerformanceDataRequest() {
     let imageDrawCount = 0;
+    let imageReadCount = 0;
     let blackFrameDrawCount = 0;
     let blackFrameProcessCount = 0;
     let fastLetterboxCount = 0;
@@ -462,18 +486,21 @@ class ArDetector {
     let edgeDetectExecCount = 0;
 
     let imageDrawAverage = 0;
+    let imageReadAverage = 0;
     let blackFrameDrawAverage = 0;
     let blackFrameProcessAverage = 0;
     let fastLetterboxAverage = 0;
     let edgeDetectAverage = 0;
 
     let imageDrawWorst = 0;
+    let imageReadWorst = 0;
     let blackFrameDrawWorst = 0;
     let blackFrameProcessWorst = 0;
     let fastLetterboxWorst = 0;
     let edgeDetectWorst = 0;
 
     let imageDrawStDev = 0;
+    let imageReadStDev = 0;
     let blackFrameDrawStDev = 0;
     let blackFrameProcessStDev = 0;
     let fastLetterboxStDev = 0;
@@ -493,6 +520,13 @@ class ArDetector {
         imageDrawAverage += sample.imageDrawTime;
         if (sample.imageDrawTime > imageDrawWorst) {
           imageDrawWorst = sample.imageDrawTime;
+        }
+      }
+      if (sample.imageReadTime) {
+        imageReadCount += sample.imageReadTime;
+        imageReadAverage += sample.imageReadTime;
+        if (sample.imageReadTime > imageReadWorst) {
+          imageReadWorst = sample.imageReadTime;
         }
       }
       if (sample.blackFrameDrawTime) {
@@ -518,6 +552,7 @@ class ArDetector {
 
       const execTime =
         sample.imageDrawTime ?? 0
+        + sample.imageReadTime ?? 0
         + sample.blackFrameDrawTime ?? 0
         + sample.blackFrameProcessTime ?? 0
         + sample.fastLetterboxTime ?? 0
@@ -530,6 +565,7 @@ class ArDetector {
 
       const partialExecTime =
         sample.imageDrawTime ?? 0
+        + sample.imageReadTime ?? 0
         + sample.blackFrameDrawTime ?? 0
         + sample.blackFrameProcessTime ?? 0;
 
@@ -542,6 +578,9 @@ class ArDetector {
       imageDrawAverage /= imageDrawCount;
     } else {
       imageDrawAverage = 0;
+    }
+    if (imageReadCount) {
+      imageReadAverage /= imageReadCount;
     }
     if (blackFrameDrawCount) {
       blackFrameDrawAverage /= blackFrameDrawCount;
@@ -594,6 +633,9 @@ class ArDetector {
       if (sample.imageDrawTime) {
         imageDrawStDev += Math.pow((sample.imageDrawTime - imageDrawAverage), 2);
       }
+      if (sample.imageReadTime) {
+        imageReadStDev += Math.pow((sample.imageReadTime - imageReadAverage), 2);
+      }
       if (sample.blackFrameDrawTime) {
         blackFrameDrawStDev += Math.pow((sample.blackFrameDrawTime - blackFrameDrawAverage), 2);
       }
@@ -603,6 +645,7 @@ class ArDetector {
 
       const execTime =
         sample.imageDrawTime ?? 0
+        + sample.imageReadTime ?? 0
         + sample.blackFrameDrawTime ?? 0
         + sample.blackFrameProcessTime ?? 0
         + sample.fastLetterboxTime ?? 0
@@ -621,6 +664,12 @@ class ArDetector {
       imageDrawStDev = 0;
     } else {
       imageDrawStDev = Math.sqrt(imageDrawStDev / (imageDrawCount - 1));
+    }
+
+    if (imageReadCount < 2) {
+      imageReadStDev = 0;
+    } else {
+      imageReadStDev = Math.sqrt(imageReadStDev / (imageReadCount - 1));
     }
 
     if (blackFrameDrawCount < 2) {
@@ -653,7 +702,6 @@ class ArDetector {
       totalStDev = Math.sqrt(totalStDev / (this.performance.samples.length - 1));
     }
 
-
     const res: AardPerformanceData = {
       total: {
         sampleCount: this.performance.samples.length,
@@ -672,6 +720,12 @@ class ArDetector {
         averageTime: imageDrawAverage,
         worstTime: imageDrawWorst,
         stDev: imageDrawStDev
+      },
+      imageRead: {
+        sampleCount: imageReadCount,
+        averageTime: imageReadAverage,
+        worstTime: imageReadWorst,
+        stDev: imageReadStDev,
       },
       blackFrameDraw: {
         sampleCount: blackFrameDrawCount,
@@ -699,6 +753,7 @@ class ArDetector {
       },
 
       imageDrawCount,
+      imageReadCount,
       blackFrameDrawCount,
       blackFrameCount: blackFrameProcessCount,
       fastLetterboxCount,
@@ -714,9 +769,17 @@ class ArDetector {
    * This is the "main loop" for aspect ratio autodetection
    */
   private async animationFrameBootstrap(timestamp: number) {
-    // this.logger.log('info', 'arDetect_verbose', `[ArDetect::animationFrameBootstrap] <@${this.arid}>  New animation frame.\nmanualTickEnabled: ${!this.manualTickEnabled}\ncan trigger frame check? ${this.canTriggerFrameCheck()}\nnext tick? ${this._nextTick}\n => (a&b | c) => Can we do tick? ${ (!this.manualTickEnabled && this.canTriggerFrameCheck()) || this._nextTick}\n\ncan we continue running? ${this && !this._halted && !this._paused}`);
+    // check if we need to re-run setup. If yes, we run setup and quit immediately
+    // as loop will be restarted by the setup script anyway.
+    if (this.video.videoWidth !== this.canvas?.width || this.video.videoHeight !== this.canvas?.height) {
+      if (!this.canvas) {
+        console.error('canvas is not defined:', this.canvas)
+      }
+      this.logger.log('info', 'debug', `[ArDetect::animationFrameBootstrap] <@${this.arid}> Video dimensions have changed. Stopping autodetection loop; setup will be re-initialized.`);
+      return this.setup();
+    }
 
-    // do timekeeping first
+    // this.logger.log('info', 'arDetect_verbose', `[ArDetect::animationFrameBootstrap] <@${this.arid}>  New animation frame.\nmanualTickEnabled: ${!this.manualTickEnabled}\ncan trigger frame check? ${this.canTriggerFrameCheck()}\nnext tick? ${this._nextTick}\n => (a&b | c) => Can we do tick? ${ (!this.manualTickEnabled && this.canTriggerFrameCheck()) || this._nextTick}\n\ncan we continue running? ${this && !this._halted && !this._paused}`);
 
     // trigger frame check, if we're allowed to
     if ( (!this.manualTickEnabled && this.canTriggerFrameCheck()) || this._nextTick) {
@@ -738,36 +801,6 @@ class ArDetector {
     // }
   }
 
-  calculateArFromEdges(edges) {
-    // if we don't specify these things, they'll have some default values.
-    if(edges.top === undefined){
-      edges.top = 0;
-      edges.bottom = 0;
-      edges.left = 0;     // RESERVED FOR FUTURE — CURRENTLY UNUSED
-      edges.right = 0;    // THIS FUNCTION CAN PRESENTLY ONLY HANDLE LETTERBOX
-    }
-
-    let letterbox = edges.top + edges.bottom;
-
-    // Since video is stretched to fit the canvas, we need to take that into account when calculating target
-    // aspect ratio and correct our calculations to account for that
-
-    const fileAr = this.video.videoWidth / this.video.videoHeight;
-    const canvasAr = this.canvas.width / this.canvas.height;
-    let widthCorrected;
-
-    if (edges.top && edges.bottom) {
-      // in case of letterbox, we take canvas height as canon and assume width got stretched or squished
-
-      if (fileAr != canvasAr) {
-        widthCorrected = this.canvas.height * fileAr;
-      } else {
-        widthCorrected = this.canvas.width;
-      }
-
-      return widthCorrected / (this.canvas.height - letterbox);
-    }
-  }
 
   processAr(trueAr){
     if (!this.isRunning()) {
@@ -782,8 +815,9 @@ class ArDetector {
 
       let arDiff = trueAr - lastAr.ratio;
 
-      if (arDiff < 0)
+      if (arDiff < 0) {
         arDiff = -arDiff;
+      }
 
       const arDiff_percent = arDiff / trueAr;
 
@@ -814,6 +848,7 @@ class ArDetector {
 
     const timerResults = {
       imageDrawTime: null,
+      imageReadTime: null,
       blackFrameDrawTime: null,
       blackFrameProcessTime: null,
       fastLetterboxTime: null,
@@ -832,17 +867,17 @@ class ArDetector {
 
     let sampleCols = this.sampleCols.slice(0);
 
-
-
     let startTime = performance.now();
     await new Promise<void>(
       resolve => {
-        this.context.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+        this.context.drawImage(this.video, 0, 0);
         resolve();
       }
     )
-    const imageData = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
     timerResults.imageDrawTime = performance.now() - startTime;
+    startTime = performance.now();
+    const imageData = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
+    timerResults.imageReadTime = performance.now() - startTime;
 
     startTime = performance.now();
 
@@ -933,7 +968,17 @@ class ArDetector {
       return;
     }
 
-    let newAr = this.calculateArFromEdges(edgePost);
+    // if we don't specify these things, they'll have some default values.
+    if(edgePost.top === undefined){
+      edgePost.top = 0;
+      edgePost.bottom = 0;
+      edgePost.left = 0;     // RESERVED FOR FUTURE — CURRENTLY UNUSED
+      edgePost.right = 0;    // THIS FUNCTION CAN PRESENTLY ONLY HANDLE LETTERBOX
+    }
+
+    const correctedWidth = this.canvas.width - edgePost.left - edgePost.right;
+    const correctedHeight = this.canvas.height - edgePost.top - edgePost.bottom;
+    const newAr = correctedWidth / correctedHeight;
 
     this.logger.log('info', 'arDetect_verbose', `%c[ArDetect::frameCheck] Triggering aspect ration change! new ar: ${newAr}`, "color: #aaf");
 

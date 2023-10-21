@@ -33,13 +33,15 @@
                   <div class="stats">
                     <b>Average: </b>
                     <span class="draw">draw (main) {{(performanceData?.imageDraw?.averageTime ?? 0).toFixed(1)}} ms</span> |
+                    <span class="draw">read (main) {{(performanceData?.imageRead?.averageTime ?? 0).toFixed(1)}} ms</span> |
                     <span class="draw-blackframe">blackframe {{(performanceData?.blackFrame?.averageTime ?? 0).toFixed(1)}} ms</span> |
                     <span class="processing">
                       processing {{
                         Math.max(
                           (performanceData?.total?.averageTime ?? 0)
                             - (performanceData?.imageDraw?.averageTime ?? 0)
-                            - (performanceData?.imageDraw?.averageTime ?? 0),
+                            - (performanceData?.imageRead?.averageTime ?? 0)
+                            - (performanceData?.blackFrame?.averageTime ?? 0),
                           0
                         ).toFixed(1)
                       }} ms
@@ -49,6 +51,11 @@
                     <div
                       class="draw"
                       :style="{'width': (performanceData?.imageDraw?.averageTime ?? 0) + '%'}"
+                    >
+                    </div>
+                    <div
+                      class="read"
+                      :style="{'width': (performanceData?.imageRead?.averageTime ?? 0) + '%'}"
                     >
                     </div>
                     <div
@@ -62,7 +69,8 @@
                         'width': Math.max(
                           (performanceData?.total?.averageTime ?? 0)
                             - (performanceData?.imageDraw?.averageTime ?? 0)
-                            - (performanceData?.imageDraw?.averageTime ?? 0),
+                            - (performanceData?.imageRead?.averageTime ?? 0),
+                            - (performanceData?.blackFrame?.averageTime ?? 0),
                           0
                         ) + '%'
                       }"
@@ -80,6 +88,7 @@
                         Math.max(
                           (performanceData?.total?.worstTime ?? 0)
                             - (performanceData?.imageDraw?.worstTime ?? 0)
+                            - (performanceData?.imageRead?.worstTime ?? 0)
                             - (performanceData?.blackFrameDraw?.worstTime ?? 0),
                           0
                         ).toFixed(1)
@@ -93,6 +102,11 @@
                     >
                     </div>
                     <div
+                      class="read"
+                      :style="{'width': (performanceData?.imageRead?.worstTime ?? 0) + '%'}"
+                    >
+                    </div>
+                    <div
                       class="draw-blackframe"
                       :style="{'width': (performanceData?.blackFrameDraw?.worstTime ?? 0) + '%'}"
                     >
@@ -103,6 +117,7 @@
                         'width': Math.max(
                           (performanceData?.total?.worstTime ?? 0)
                             - (performanceData?.imageDraw?.worstTime ?? 0)
+                            - (performanceData?.imageRead?.worstTime ?? 0)
                             - (performanceData?.blackFrameDraw?.worstTime ?? 0),
                           0
                         ) + '%'
@@ -442,11 +457,15 @@ export default {
           &.draw::before {
             background-color: #fb772a;
           }
+          &.read::before {
+            background-color: #ffba60;
+          }
           &.draw-blackframe::before {
-            background-color: #e70c0c;
+            background-color: #2f3653;
+            border: 1px solid #c0baf2;
           }
           &.processing::before {
-            background-color: rgb(176, 167, 239);
+            background-color: rgb(84, 129, 198);
           }
         }
       }
@@ -465,11 +484,15 @@ export default {
         .draw {
           background-color: #fb772a;
         }
+        .read {
+          background-color: #ffba60;
+        }
         .draw-blackframe {
-          background-color: #e70c0c;
+          background-color: #2f3653;
+          border: 1px solid #c0baf2;
         }
         .processing {
-          background-color: rgb(176, 167, 239);
+          background-color: rgb(84, 129, 198);
         }
       }
     }
