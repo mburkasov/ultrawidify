@@ -1,4 +1,3 @@
-
 import Debug from '../../conf/Debug';
 import EdgeDetect from './edge-detect/EdgeDetect';
 import EdgeStatus from './edge-detect/enums/EdgeStatusEnum';
@@ -195,7 +194,7 @@ class ArDetector {
     // this.blackframeCanvas.width = this.settings.active.arDetect.canvasDimensions.blackframeCanvas.width;
     // this.blackframeCanvas.height = this.settings.active.arDetect.canvasDimensions.blackframeCanvas.height;
 
-    this.context = this.canvas.getContext("2d");
+    this.context = this.canvas.getContext("2d", { willReadFrequently: true });
     // this.blackframeContext = this.blackframeCanvas.getContext("2d");
 
 

@@ -19,9 +19,11 @@ export enum AngleVersion {
  */
 function detectDX(shaderSource: string) {
   const glsl = shaderSource.match(/#version (\d+)( es)?$/m);
-
+  if (!glsl) {
+    // Handle the case where the version is not found
+    return null; // or AngleVersion.NotAvailable if preferred
+  }
   const glslVer = +glsl[1];
-
   if (glslVer >= 300) {
     return AngleVersion.D3D11;
   }
