@@ -3,9 +3,10 @@ Fork of [Ultrawidify](https://github.com/tamius-han/ultrawidify) before the UI c
 
 
 
-building:
-docker build -t ultrawidify .
-docker run -it --rm -v ${PWD}:/usr/src/app ultrawidify 
+### building:
+docker build -t ultrawidify .  
+docker run -it --rm -v ${PWD}:/usr/src/app ultrawidify   
 
-Enable extention developer mode
+### installing:
+Enable extention developer mode  
 Load unpacked
