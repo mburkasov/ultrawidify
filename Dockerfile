@@ -30,14 +30,11 @@ ENV NODE_OPTIONS=--openssl-legacy-provider
 # Remove node-sass and install sass as a replacement
 RUN npm uninstall node-sass && npm install sass --save-dev
 
-# Clean install: remove node_modules and package-lock.json, then install dependencies
-#RUN rm -rf node_modules package-lock.json && npm install
-
 # Install cross-env globally to ensure it is available
 RUN npm install -g cross-env
 
-# Install webpack globally to ensure it is available
-RUN npm install -g webpack
+# Install webpack and webpack-cli locally as devDependencies
+RUN npm install --save-dev webpack webpack-cli
 
 # Update Browserslist database
 RUN npx browserslist@latest --update-db
